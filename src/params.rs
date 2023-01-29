@@ -16,6 +16,9 @@ pub struct Params {
     /// Delete files interactively
     #[arg(long, short)]
     pub interactive: bool,
+    /// Delete mass files
+    #[arg(long, short, default_value = "false")]
+    pub mass: bool,
     /// Minimum filesize of duplicates to scan (e.g., 100B/1K/2M/3G/4T).
     #[arg(long, short = 's', default_value = "1b")]
     pub min_size: Option<String>,

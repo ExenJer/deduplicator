@@ -46,7 +46,7 @@ fn scan_group_instruction() -> Result<String> {
     println!("You can enter multiple files using commas to seperate file indices.");
     println!("example: 1,2");
     print!("\n> ");
-    std::io::stdout().flush()?;
+    io::stdout().flush()?;
     let mut user_input = String::new();
     io::stdin().read_line(&mut user_input)?;
 
@@ -55,7 +55,7 @@ fn scan_group_instruction() -> Result<String> {
 
 fn scan_group_confirmation() -> Result<bool> {
     print!("\nconfirm? [y/N]: ");
-    std::io::stdout().flush()?;
+    io::stdout().flush()?;
     let mut user_input = String::new();
     io::stdin().read_line(&mut user_input)?;
 
@@ -65,16 +65,37 @@ fn scan_group_confirmation() -> Result<bool> {
     }
 }
 
-fn process_group_action(duplicates: &Vec<File>, dup_index: usize, dup_size: usize, table: Table) {
-    println!("\nDuplicate Set {} of {}\n", dup_index + 1, dup_size);
-    table.printstd();
-    let files_to_delete = scan_group_instruction().unwrap_or_default();
-    let parsed_file_indices = files_to_delete
-        .trim()
-        .split(',')
-        .filter(|element| !element.is_empty())
-        .map(|index| index.parse::<usize>().unwrap_or_default())
-        .collect_vec();
+fn process_group_action(duplicates: &Vec<File>, dup_index: usize, dup_size: usize, table: Table, opts: &Params) {
+    if !opts.mass {
+        println!("\nDuplicate Set {} of {}\n", dup_index + 1, dup_size);
+        table.printstd();
+    }
+
+    let mut parsed_file_indices: Vec<usize>;
+
+    if opts.mass {
+        parsed_file_indices = Vec::with_capacity(duplicates.len());
+
+        if duplicates.len() > 1 {
+            duplicates.iter().enumerate().for_each(|(index, file)| {
+                parsed_file_indices.push(index);
+            });
+
+            // remove the first occurrence of a file
+            parsed_file_indices.remove(0);
+        } else {
+            return;
+        }
+    } else {
+        let files_to_delete = scan_group_instruction().unwrap_or_default();
+
+        parsed_file_indices = files_to_delete
+            .trim()
+            .split(',')
+            .filter(|element| !element.is_empty())
+            .map(|index| index.parse::<usize>().unwrap_or_default())
+            .collect_vec();
+    }
 
     if parsed_file_indices
         .clone()
@@ -82,7 +103,7 @@ fn process_group_action(duplicates: &Vec<File>, dup_index: usize, dup_size: usiz
         .any(|index| index > (duplicates.len() - 1))
     {
         println!("{}", "Err: File Index Out of Bounds!".red());
-        return process_group_action(duplicates, dup_index, dup_size, table);
+        return process_group_action(duplicates, dup_index, dup_size, table, opts);
     }
 
     print!("{esc}[2J{esc}[1;1H", esc = 27 as char);
@@ -103,11 +124,15 @@ fn process_group_action(duplicates: &Vec<File>, dup_index: usize, dup_size: usiz
             println!("{}: {}", index.to_string().blue(), file.path);
         });
 
-    match scan_group_confirmation().unwrap() {
-        true => {
-            file_manager::delete_files(files_to_delete.collect_vec()).ok();
+    if opts.mass {
+        file_manager::delete_files(files_to_delete.collect_vec()).ok();
+    } else {
+        match scan_group_confirmation().unwrap() {
+            true => {
+                file_manager::delete_files(files_to_delete.collect_vec()).ok();
+            }
+            false => println!("{}", "\nCancelled Delete Operation.".red()),
         }
-        false => println!("{}", "\nCancelled Delete Operation.".red()),
     }
 }
 
@@ -140,7 +165,7 @@ pub fn interactive(duplicates: DashMap<String, Vec<File>>, opts: &Params) {
                 ]);
             });
 
-            process_group_action(&group, gindex, duplicates.len(), itable);
+            process_group_action(&group, gindex, duplicates.len(), itable, opts);
         });
 }
 
